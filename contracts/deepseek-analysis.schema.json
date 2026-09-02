@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://essay-studio.local/schemas/deepseek-analysis-1.0.json",
+  "title": "DeepSeekEssayAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "cards", "publicationCopy"],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "cards": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "prefixItems": [
+        { "$ref": "#/$defs/coverCard" },
+        { "$ref": "#/$defs/bodyCard" },
+        { "$ref": "#/$defs/bodyCard" },
+        { "$ref": "#/$defs/bodyCard" },
+        { "$ref": "#/$defs/bodyCard" },
+        { "$ref": "#/$defs/endingCard" }
+      ],
+      "items": false
+    },
+    "publicationCopy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    }
+  },
+  "$defs": {
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["horizontalAlign", "verticalAlign", "widthPercent"],
+      "properties": {
+        "horizontalAlign": {
+          "enum": ["left", "center", "right"]
+        },
+        "verticalAlign": {
+          "enum": ["top", "center", "bottom"]
+        },
+        "widthPercent": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 90
+        }
+      }
+    },
+    "cardBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "sourceExcerpt",
+        "sourceStartHint",
+        "editorGuide",
+        "sceneDescription",
+        "imagePrompt",
+        "textPlacement"
+      ],
+      "properties": {
+        "kind": {
+          "enum": ["cover", "body", "ending"]
+        },
+        "sourceExcerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "sourceStartHint": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "editorGuide": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "sceneDescription": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "imagePrompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "textPlacement": {
+          "$ref": "#/$defs/placement"
+        }
+      }
+    },
+    "coverCard": {
+      "allOf": [
+        { "$ref": "#/$defs/cardBase" },
+        {
+          "properties": {
+            "kind": { "const": "cover" }
+          }
+        }
+      ]
+    },
+    "bodyCard": {
+      "allOf": [
+        { "$ref": "#/$defs/cardBase" },
+        {
+          "properties": {
+            "kind": { "const": "body" }
+          }
+        }
+      ]
+    },
+    "endingCard": {
+      "allOf": [
+        { "$ref": "#/$defs/cardBase" },
+        {
+          "properties": {
+            "kind": { "const": "ending" }
+          }
+        }
+      ]
+    }
+  }
+}

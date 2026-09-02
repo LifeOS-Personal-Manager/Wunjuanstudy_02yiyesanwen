@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local Cloudflare development. Never commit .dev.vars.
+DEV_USER_EMAIL=developer@example.com
+DEEPSEEK_API_KEY=
+BRAVE_SEARCH_API_KEY=
+DEEPSEEK_MODEL=deepseek-chat

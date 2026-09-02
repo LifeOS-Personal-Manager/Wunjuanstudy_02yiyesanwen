@@ -1,0 +1,21 @@
+name = "essay-image-studio"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "ESSAY_DB"
+database_name = "essay-studio"
+database_id = "2cadbf53-4d19-4f84-adee-d78c419cbbfc"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "ESSAY_ASSETS"
+bucket_name = "essay-studio-assets"
+
+[vars]
+DEEPSEEK_MODEL = "deepseek-chat"
+ACCESS_TEAM_DOMAIN = "shy-bird-d033.cloudflareaccess.com"
+ACCESS_AUD = "3a4f9f61ddd1072dee6fab869ac6861c540368ba67a535a8ecc3f28ec880ef4e"
+
+# Configure the API key separately:
+# npx wrangler pages secret put DEEPSEEK_API_KEY --project-name essay-image-studio
