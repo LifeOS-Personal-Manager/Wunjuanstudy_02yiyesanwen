@@ -171,10 +171,11 @@ function PageHeader({ eyebrow, title, description, actions }: { eyebrow: string;
 }
 
 function CardsPage() {
-  const { essay, cards, moveCard, removeCard, updateEssay, analyzeCurrentEssay, promoteCurrentEssay } = useStudio();
+  const { essay, cards, moveCard, removeCard, updateEssay, analyzeCurrentEssay, promoteCurrentEssay, deleteCurrentProject } = useStudio();
   const navigate = useNavigate();
   const [editingMeta, setEditingMeta] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const ordered = [...cards].sort((a, b) => a.position - b.position);
 
   async function analyze() {
@@ -187,13 +188,23 @@ function CardsPage() {
     finally { setAnalyzing(false); }
   }
 
+  async function deleteEssay() {
+    if (!confirm(`永久删除《${essay.title}》及其 ${cards.length} 张图卡、图片和分析记录？此操作不可恢复。`)) return;
+    setDeleting(true);
+    try {
+      const nextId = await deleteCurrentProject();
+      if (nextId) { navigate(`/essays/${nextId}`); toast("散文项目及关联图片已删除"); }
+    } catch { toast("删除失败，请检查网络后重试"); }
+    finally { setDeleting(false); }
+  }
+
   return <>
-    <PageHeader eyebrow="内容编排" title={`${essay.title} · 图卡结构`} description="原文短摘由源文本逐字定位，编辑导读与画面提示可随时调整。" actions={<><Button variant="secondary" onClick={() => setEditingMeta(!editingMeta)}><PencilLine size={17} />原文信息</Button><Button onClick={analyze} disabled={analyzing}>{analyzing ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}{analyzing ? "正在生成六卡内容" : "重新生成六卡内容"}</Button></>} />
+    <PageHeader eyebrow="内容编排" title={`${essay.title} · 图卡结构`} description="原文短摘由源文本逐字定位，编辑导读与画面提示可随时调整。" actions={<><Button variant="secondary" onClick={() => setEditingMeta(!editingMeta)}><PencilLine size={17} />原文信息</Button><Button onClick={analyze} disabled={analyzing}>{analyzing ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}{analyzing ? "正在生成六卡内容" : "重新生成六卡内容"}</Button><Button variant="danger" onClick={deleteEssay} disabled={deleting || essay.id === "demo-tadpoles"}>{deleting ? <LoaderCircle className="spin" size={17} /> : <Trash2 size={17} />}{deleting ? "正在删除" : "删除当前散文"}</Button></>} />
     {editingMeta && <MetaEditor onClose={() => setEditingMeta(false)} />}
     <section className="status-strip"><div><Check size={18} /><span>原文完整性</span><strong>{cards.filter(c => c.sourceStatus === "valid" && essay.originalText.slice(c.sourceRange.start, c.sourceRange.end) === c.sourceExcerpt).length}/{cards.length} 已验证</strong></div><div><FileText size={18} /><span>原文字数</span><strong>{essay.originalText.length}</strong></div><div><Image size={18} /><span>已匹配底图</span><strong>{cards.filter(c => c.sourceAssetId).length}/{cards.length}</strong></div></section>
     <div className="card-list">{ordered.map((card, index) => <article className="story-card" key={card.id}>
       <div className="story-thumb"><CardPreview card={card} /><span className="card-number">{String(index + 1).padStart(2, "0")}</span></div>
-      <div className="story-content"><div className="story-heading"><div><Badge tone={card.kind === "body" ? "neutral" : "amber"}>{card.kind === "cover" ? "封面" : card.kind === "ending" ? "结尾" : "正文"}</Badge><h2>{card.sceneDescription}</h2></div><div className="row-actions"><IconButton label="上移" disabled={index === 0} onClick={() => moveCard(card.id, -1)}><ArrowUp size={16} /></IconButton><IconButton label="下移" disabled={index === ordered.length - 1} onClick={() => moveCard(card.id, 1)}><ArrowDown size={16} /></IconButton><IconButton label="删除" onClick={() => { if (confirm("删除这张图卡？")) removeCard(card.id); }}><Trash2 size={16} /></IconButton></div></div>
+      <div className="story-content"><div className="story-heading"><div><Badge tone={card.kind === "body" ? "neutral" : "amber"}>{card.kind === "cover" ? "封面" : card.kind === "ending" ? "结尾" : "正文"}</Badge><h2>{card.sceneDescription}</h2></div><div className="row-actions"><IconButton label="上移" disabled={index === 0} onClick={() => moveCard(card.id, -1)}><ArrowUp size={16} /></IconButton><IconButton label="下移" disabled={index === ordered.length - 1} onClick={() => moveCard(card.id, 1)}><ArrowDown size={16} /></IconButton><IconButton label="删除" onClick={() => { if (confirm("删除这张图卡及其模板配置？仅由此图卡使用的图片会一并清理。")) removeCard(card.id); }}><Trash2 size={16} /></IconButton></div></div>
         <blockquote>{card.sourceExcerpt}</blockquote><p>{card.editorGuide}</p><button className="text-link" onClick={() => navigate(`cards/${card.id}`)}>编辑图卡 <ChevronRight size={15} /></button>
       </div>
     </article>)}</div>

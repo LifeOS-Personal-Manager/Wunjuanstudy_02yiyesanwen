@@ -21,6 +21,7 @@ interface StudioContextValue extends Workspace {
   moveCard: (id: string, direction: -1 | 1) => void;
   createWorkspace: (workspace: GeneratedWorkspace) => string;
   openProject: (id: string) => void;
+  deleteCurrentProject: () => Promise<string | null>;
   uploadCardImages: (files: File[]) => Promise<number>;
   uploadCardImage: (cardId: string, file: File) => Promise<void>;
   generateDraftImages: () => Promise<number>;
@@ -168,6 +169,23 @@ export function StudioProvider({ children }: { children: ReactNode }) {
     },
     createWorkspace: (workspace) => { setState((previous) => ({ currentId: workspace.essay.id, workspaces: [workspace, ...previous.workspaces.filter((item) => item.essay.id !== workspace.essay.id)] })); return workspace.essay.id; },
     openProject: (projectId) => setState((previous) => previous.workspaces.some((item) => item.essay.id === projectId) ? { ...previous, currentId: projectId } : previous),
+    deleteCurrentProject: async () => {
+      const target = current;
+      if (target.essay.id === DEMO_ESSAY.id) { notify("示例《蝌蚪》不可删除，可通过恢复案例重新生成"); return null; }
+      setSyncStatus("saving"); setSyncMessage("正在清理散文与图片");
+      try {
+        if (isServerEssay(target.essay)) await apiClient.purgeEssay(target.essay.id);
+        const nextId = stateRef.current.workspaces.find((workspace) => workspace.essay.id !== target.essay.id)?.essay.id || DEMO_ESSAY.id;
+        setState((previous) => {
+          const remaining = previous.workspaces.filter((workspace) => workspace.essay.id !== target.essay.id);
+          return { currentId: remaining[0]?.essay.id || DEMO_ESSAY.id, workspaces: remaining.length ? remaining : [demoWorkspace] };
+        });
+        setSyncStatus("saved"); setSyncMessage("散文项目及关联图片已删除");
+        return nextId;
+      } catch (error) {
+        setSyncStatus("error"); setSyncMessage("删除失败，项目未被移除"); throw error;
+      }
+    },
     uploadCardImages: async (files) => {
       const essayId = current.essay.id; const cards = [...current.cards].sort((a, b) => a.position - b.position); const count = Math.min(files.length, cards.length);
       const orderedFiles = files.map((file, index) => ({ file, index, position: Number(file.name.match(/(?:^|\D)(0?[1-6])(?:\D|$)/)?.[1] || 99) })).sort((a, b) => a.position - b.position || a.index - b.index).map((item) => item.file);

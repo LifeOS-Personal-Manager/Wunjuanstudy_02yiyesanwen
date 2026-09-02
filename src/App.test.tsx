@@ -13,6 +13,11 @@ describe("工作台", () => {
     expect(screen.getAllByText("编辑图卡")).toHaveLength(6);
   });
 
+  it("示例项目显示删除入口但不允许误删", async () => {
+    render(<MemoryRouter initialEntries={["/essays/demo-tadpoles"]}><App /></MemoryRouter>);
+    const deleteButtons = await screen.findAllByRole("button", { name: "删除当前散文" });
+    expect(deleteButtons.every((button) => button.hasAttribute("disabled"))).toBe(true);
+  });
   it("提示词页面提供复制和 Markdown 下载", async () => {
     render(<MemoryRouter initialEntries={["/essays/demo-tadpoles/prompts"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "提示词清单" })).toBeInTheDocument();

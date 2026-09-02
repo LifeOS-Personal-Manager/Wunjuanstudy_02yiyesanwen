@@ -30,6 +30,7 @@ export const apiClient = {
     const response = await fetch(`/api/essays/${essayId}`, { method: "DELETE", credentials: "same-origin" });
     if (!response.ok) throw new ApiClientError("DELETE_FAILED", "归档散文失败", response.status);
   },
+  purgeEssay: (essayId: string) => request<{ deleted: true; deletedAssets: number }>(`/essays/${essayId}/purge`, { method: "DELETE" }),
   analyzeEssay: (essayId: string) => request<{ cards: EssayCard[] }>(`/essays/${essayId}/analysis-runs`, { method: "POST", body: JSON.stringify({ cardCount: 6 }) }),
   regenerateCard: (essayId: string, cardId: string, version: number, instruction = "") => request<EssayCard>(`/essays/${essayId}/cards/${cardId}/regenerate`, { method: "POST", body: JSON.stringify({ version, instruction, preserveExcerpt: true }) }),
   updateEssay: (essayId: string, input: Partial<Essay> & { version: number }) => request<Essay>(`/essays/${essayId}`, { method: "PATCH", body: JSON.stringify(input) }),

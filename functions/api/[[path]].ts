@@ -475,6 +475,20 @@ export const onRequest: PagesFunction<Env> = async (context: Context) => {
         return new Response(null, { status: 204 });
       }
 
+      if (path[2] === "purge" && path.length === 3 && method === "DELETE") {
+        const assets = await env.ESSAY_DB.prepare("SELECT r2_key FROM assets WHERE essay_id=?").bind(essayId).all<{ r2_key: string }>();
+        await Promise.all(assets.results.map((asset) => env.ESSAY_ASSETS.delete(asset.r2_key)));
+        await env.ESSAY_DB.batch([
+          env.ESSAY_DB.prepare("DELETE FROM export_jobs WHERE essay_id=?").bind(essayId),
+          env.ESSAY_DB.prepare("DELETE FROM cards WHERE essay_id=?").bind(essayId),
+          env.ESSAY_DB.prepare("DELETE FROM analysis_runs WHERE essay_id=?").bind(essayId),
+          env.ESSAY_DB.prepare("DELETE FROM source_snapshots WHERE essay_id=?").bind(essayId),
+          env.ESSAY_DB.prepare("DELETE FROM assets WHERE essay_id=?").bind(essayId),
+          env.ESSAY_DB.prepare("DELETE FROM essays WHERE id=? AND owner_id=?").bind(essayId, ownerId),
+        ]);
+        return success({ deleted: true, deletedAssets: assets.results.length });
+      }
+
       if (path.length === 2 && method === "PATCH") {
         const input = await body(request);
         if (input.version !== essay.version) return failure("VERSION_CONFLICT", "数据已被其他页面更新", 409, essay);
@@ -526,6 +540,13 @@ export const onRequest: PagesFunction<Env> = async (context: Context) => {
           await env.ESSAY_DB.prepare("DELETE FROM cards WHERE id=? AND essay_id=?").bind(cardId, essayId).run();
           const remaining = await listCards(env.ESSAY_DB, essayId);
           await env.ESSAY_DB.batch(remaining.map((item: ReturnType<typeof mapCard>, position) => env.ESSAY_DB.prepare("UPDATE cards SET position=?,version=version+1,updated_at=? WHERE id=?").bind(position, now(), item.id)));
+          const assetIds = [card.sourceAssetId, card.renderedAssetId].filter((assetId): assetId is string => Boolean(assetId));
+          for (const assetId of new Set(assetIds)) {
+            const asset = await env.ESSAY_DB.prepare("SELECT a.id,a.r2_key FROM assets a WHERE a.id=? AND NOT EXISTS (SELECT 1 FROM cards c WHERE c.source_asset_id=a.id OR c.rendered_asset_id=a.id)").bind(assetId).first<{ id: string; r2_key: string }>();
+            if (!asset) continue;
+            try { await env.ESSAY_ASSETS.delete(asset.r2_key); await env.ESSAY_DB.prepare("DELETE FROM assets WHERE id=?").bind(asset.id).run(); }
+            catch { console.error(JSON.stringify({ event: "asset_cleanup_failed", essayId, cardId, assetId })); }
+          }
           responseStatus = 204;
           return new Response(null, { status: 204 });
         }
