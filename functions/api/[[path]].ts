@@ -24,6 +24,31 @@ const DEEPSEEK_ANALYSIS_WINDOW_SECONDS = 3600;
 
 function now() { return new Date().toISOString(); }
 function id() { return crypto.randomUUID(); }
+const AUTHOR_ALIASES: Record<string, string> = {
+  "居格涅夫": "屠格涅夫",
+  "屠格涅夫": "屠格涅夫",
+};
+
+function normalizeAuthor(value: string) {
+  const normalized = value.trim().replace(/\s+/g, "");
+  return AUTHOR_ALIASES[normalized] || value.trim();
+}
+
+function normalizeTitle(value: string) {
+  return value.trim().replace(/[《》]/g, "").replace(/\s+/g, "");
+}
+
+function sameAuthor(left: string, right: string) {
+  const a = normalizeAuthor(left);
+  const b = normalizeAuthor(right);
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function sameTitle(left: string, right: string) {
+  const a = normalizeTitle(left);
+  const b = normalizeTitle(right);
+  return a === b || a.includes(b) || b.includes(a);
+}
 function parseJson<T>(value: unknown, fallback: T): T { try { return typeof value === "string" ? JSON.parse(value) as T : fallback; } catch { return fallback; } }
 function toHex(bytes: ArrayBuffer) { return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, "0")).join(""); }
 async function sha256(value: string | ArrayBuffer) { return toHex(await crypto.subtle.digest("SHA-256", typeof value === "string" ? new TextEncoder().encode(value) : value)); }
@@ -276,7 +301,7 @@ async function completeSourceWithDeepSeek(env: Env, title: string, author: strin
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "你是中文散文资料索引助手。根据篇名和作者，从你的知识中还原完整散文原文。只输出 JSON：{title:string,author:string,originalText:string,confidence:'high'|'medium'|'low',sourceHint:string}。originalText 必须只含正文，保留自然分段；不要摘要、解释、Markdown、引号或补充说明。若不能高置信识别或无法给出完整原文，originalText 设为空字符串。" },
-        { role: "user", content: JSON.stringify({ title, author: author || "作者未提供" }) },
+        { role: "user", content: JSON.stringify({ title: normalizeTitle(title), author: normalizeAuthor(author) || "作者未提供" }) },
       ],
     }),
   });
@@ -287,14 +312,15 @@ async function completeSourceWithDeepSeek(env: Env, title: string, author: strin
   let generated: DeepSeekSourceResponse;
   try { generated = JSON.parse(content) as DeepSeekSourceResponse; } catch { throw new Error("DEEPSEEK_SOURCE_INVALID_JSON"); }
   const originalText = typeof generated.originalText === "string" ? generated.originalText.trim() : "";
-  const generatedTitle = typeof generated.title === "string" ? generated.title.trim().replace(/[《》]/g, "") : "";
-  const generatedAuthor = typeof generated.author === "string" ? generated.author.trim() : "";
-  if (originalText.length < 300 || originalText.length > 200000 || generatedTitle !== title || (author && generatedAuthor !== author)) return [];
-  const confidence = generated.confidence === "high" ? "高" : generated.confidence === "medium" ? "中" : "低";
+  const generatedTitle = typeof generated.title === "string" ? normalizeTitle(generated.title) : "";
+  const normalizedTitle = normalizeTitle(title);
+  const generatedAuthor = typeof generated.author === "string" ? normalizeAuthor(generated.author) : "";
+  const normalizedAuthor = normalizeAuthor(author);
+  if (originalText.length < 300 || originalText.length > 200000 || !sameTitle(generatedTitle, normalizedTitle) || (normalizedAuthor && generatedAuthor && !sameAuthor(generatedAuthor, normalizedAuthor))) return [];  const confidence = generated.confidence === "high" ? "高" : generated.confidence === "medium" ? "中" : "低";
   const sourceHint = typeof generated.sourceHint === "string" ? generated.sourceHint.trim().slice(0, 300) : "DeepSeek 知识库索引";
   return [{
     id: `deepseek-${await sha256(`${title}\n${generatedAuthor}\n${originalText}`)}`,
-    title, author: generatedAuthor || author || "作者待核验",
+    title: normalizedTitle, author: generatedAuthor || normalizedAuthor || "作者待核验",
     sourceName: `DeepSeek AI 索引补全文 · 置信度${confidence}`,
     sourceUrl: "https://api.deepseek.com/",
     copyrightNotice: "该正文由 DeepSeek 按篇名和作者补全，不等同于已核验的权威版本。发布、转载或商用前请与授权版本逐字核验并确认版权。",
@@ -429,7 +455,7 @@ export const onRequest: PagesFunction<Env> = async (context: Context) => {
 
     if (path[0] === "source-candidates" && method === "GET") {
       const title = url.searchParams.get("title")?.trim().replace(/[《》]/g, "") || "";
-      const author = url.searchParams.get("author")?.trim() || "";
+      const author = normalizeAuthor(url.searchParams.get("author")?.trim() || "");
       if (!title) return failure("VALIDATION_ERROR", "请输入散文名", 400);
       if (title.length > 200 || author.length > 120) return failure("VALIDATION_ERROR", "篇名或作者过长", 400);
       await enforceRateLimit(env.ESSAY_DB, ownerId, "source_search", 60, 3600);
