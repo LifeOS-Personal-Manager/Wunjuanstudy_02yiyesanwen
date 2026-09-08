@@ -12,6 +12,7 @@ import { Badge, Button, Field, IconButton, Input, Textarea } from "./components/
 import { generateWorkspace, type GeneratedWorkspace } from "./data/generator";
 import { downloadBlob, slugify } from "./lib/utils";
 import { searchPublicSources, type SourceCandidate } from "./lib/sourceSearch";
+import { findSourceExcerpt } from "./lib/sourceExcerpt";
 import { apiClient, assetContentUrl, isServerEssay } from "./lib/apiClient";
 import { StudioProvider, useStudio } from "./store";
 import type { EssayCard } from "./types";
@@ -226,12 +227,12 @@ function CardEditor() {
   const [regenerating, setRegenerating] = useState(false);
   useEffect(() => { setDraft(card); }, [card]);
   if (!card || !draft) return <Navigate to={`/essays/${essay.id}`} replace />;
-  const matchAt = essay.originalText.indexOf(draft.sourceExcerpt);
+  const sourceMatch = findSourceExcerpt(essay.originalText, draft.sourceExcerpt);
   return <>
     <button className="back-link" onClick={() => navigate(-1)}><ArrowLeft size={17} />返回图卡</button>
-    <PageHeader eyebrow={`图卡 ${String(card.position + 1).padStart(2, "0")}`} title={card.sceneDescription} description="短摘必须逐字来自原文。重新生成只更新导读、场景和提示词。" actions={<Button onClick={() => { updateCard(card.id, { ...draft, sourceRange: { start: matchAt, end: matchAt + draft.sourceExcerpt.length }, sourceStatus: matchAt >= 0 ? "valid" : "invalid" }); toast("图卡已保存"); }} disabled={matchAt < 0}><Save size={17} />保存</Button>} />
+    <PageHeader eyebrow={`图卡 ${String(card.position + 1).padStart(2, "0")}`} title={card.sceneDescription} description="短摘可手动删减与调整格式；保存时会重新从原文定位。重新生成只更新导读、场景和提示词。" actions={<Button onClick={() => { if (!sourceMatch) return; updateCard(card.id, { ...draft, sourceExcerpt: sourceMatch.excerpt, sourceRange: { start: sourceMatch.start, end: sourceMatch.end }, sourceStatus: "valid" }); toast(sourceMatch.normalized ? "短摘已按原文格式保存" : "图卡已保存"); }} disabled={!sourceMatch}><Save size={17} />保存</Button>} />
     <div className="editor-split"><div className="editor-fields">
-      <Field label="原文短摘" hint={matchAt >= 0 ? `已在原文第 ${matchAt + 1} 字精确命中` : "未在原文中找到，不能保存"}><Textarea rows={5} value={draft.sourceExcerpt} onChange={e => setDraft({ ...draft, sourceExcerpt: e.target.value })} /></Field>
+      <Field label="原文短摘" hint={sourceMatch ? `将保存原文第 ${sourceMatch.start + 1} 至 ${sourceMatch.end} 字${sourceMatch.normalized ? "（已自动还原原文标点与换行）" : ""}` : "正文文字必须来自完整原文；可调整长度、换行和标点后重试"}><Textarea rows={5} value={draft.sourceExcerpt} onChange={e => setDraft({ ...draft, sourceExcerpt: e.target.value })} /></Field>
       <Field label="编辑导读"><Textarea rows={4} value={draft.editorGuide} onChange={e => setDraft({ ...draft, editorGuide: e.target.value })} /></Field>
       <Field label="场景描述"><Input value={draft.sceneDescription} onChange={e => setDraft({ ...draft, sceneDescription: e.target.value })} /></Field>
       <Field label="生图提示词"><Textarea rows={7} value={draft.imagePrompt} onChange={e => setDraft({ ...draft, imagePrompt: e.target.value })} /></Field>

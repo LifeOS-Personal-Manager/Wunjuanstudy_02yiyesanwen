@@ -1,4 +1,5 @@
 import { readImageInfo } from "../_shared/image";
+import { findSourceExcerpt } from "../../shared/sourceExcerpt";
 
 interface Env {
   ESSAY_DB: D1Database;
@@ -578,10 +579,11 @@ export const onRequest: PagesFunction<Env> = async (context: Context) => {
         }
         if (method === "PATCH") {
           const input = await body(request); if (input.version !== card.version) return failure("VERSION_CONFLICT", "图卡已更新", 409, card);
-          const excerpt = typeof input.sourceExcerpt === "string" ? input.sourceExcerpt : card.sourceExcerpt as string; const start = (essay.originalText as string).indexOf(excerpt);
-          if (start < 0) return failure("SOURCE_NOT_FOUND", "短摘不在原文中", 422);
+          const excerptInput = typeof input.sourceExcerpt === "string" ? input.sourceExcerpt : card.sourceExcerpt as string;
+          const sourceMatch = findSourceExcerpt(essay.originalText as string, excerptInput);
+          if (!sourceMatch) return failure("SOURCE_NOT_FOUND", "短摘正文不在原文中；请仅修改长度、换行或标点", 422);
           await env.ESSAY_DB.prepare("UPDATE cards SET source_start=?,source_end=?,source_excerpt=?,editor_guide=?,scene_description=?,image_prompt=?,text_position_json=?,crop_json=?,template_settings_json=?,source_asset_id=?,rendered_asset_id=?,source_status='valid',version=version+1,updated_at=? WHERE id=? AND version=?")
-            .bind(start, start + excerpt.length, excerpt, input.editorGuide ?? card.editorGuide, input.sceneDescription ?? card.sceneDescription, input.imagePrompt ?? card.imagePrompt, JSON.stringify(input.textPosition ?? card.textPosition), JSON.stringify(input.crop ?? card.crop), JSON.stringify(input.templateSettings ?? card.templateSettings), input.sourceAssetId === undefined ? card.sourceAssetId : input.sourceAssetId, input.renderedAssetId === undefined ? card.renderedAssetId : input.renderedAssetId, now(), cardId, input.version).run();
+            .bind(sourceMatch.start, sourceMatch.end, sourceMatch.excerpt, input.editorGuide ?? card.editorGuide, input.sceneDescription ?? card.sceneDescription, input.imagePrompt ?? card.imagePrompt, JSON.stringify(input.textPosition ?? card.textPosition), JSON.stringify(input.crop ?? card.crop), JSON.stringify(input.templateSettings ?? card.templateSettings), input.sourceAssetId === undefined ? card.sourceAssetId : input.sourceAssetId, input.renderedAssetId === undefined ? card.renderedAssetId : input.renderedAssetId, now(), cardId, input.version).run();
           const updated = await env.ESSAY_DB.prepare("SELECT * FROM cards WHERE id=?").bind(cardId).first<JsonRecord>(); return success(mapCard(updated!));
         }
       }

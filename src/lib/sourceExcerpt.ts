@@ -1,0 +1,1 @@
+export { findSourceExcerpt, type SourceExcerptMatch } from "../../shared/sourceExcerpt";
